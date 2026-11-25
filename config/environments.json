@@ -1,0 +1,16 @@
+{
+  "environments": [
+    {
+      "id": "dev",
+      "label": "DEV",
+      "baseUrl": "https://aem-author-dev.ws.fraunhofer.de",
+      "publishUrl": "https://aem-publish1-dev.ws.fraunhofer.de"
+    },
+    {
+      "id": "test",
+      "label": "TEST",
+      "baseUrl": "https://aem-author-test.ws.fraunhofer.de",
+      "publishUrl": "https://aem-publish1-test.ws.fraunhofer.de"
+    }
+  ]
+}

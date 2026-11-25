@@ -1,0 +1,14 @@
+services:
+  dashboard:
+    build: .
+    # Nur lokal erreichbar. Das Dashboard hat keine eigene Anmeldung:
+    # für einen Server im Netz einen Reverse Proxy mit Anmeldung davorsetzen.
+    ports:
+      - "127.0.0.1:4400:4400"
+    env_file: .env
+    volumes:
+      - dashboard-data:/data
+    restart: unless-stopped
+
+volumes:
+  dashboard-data:

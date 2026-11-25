@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AEM Health Dashboard</title>
+  <script>
+    // Theme vor dem ersten Zeichnen setzen (kein Aufblitzen): gespeichert, sonst Systemeinstellung.
+    try {
+      const saved = localStorage.getItem('aem-health-theme');
+      const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    } catch {}
+  </script>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Zum Inhalt springen</a>
+  <header class="top">
+    <h1>AEM Health Dashboard</h1>
+    <div class="top-tools">
+      <div id="view" class="view" role="group" aria-label="Ansicht"></div>
+      <span id="conn" class="conn" role="status" data-state="connecting">Verbinde …</span>
+      <button id="theme" class="btn btn-icon" type="button" aria-pressed="false" aria-label="Hell / Dunkel" title="Hell / Dunkel"></button>
+      <button id="power" class="btn btn-power" type="button" aria-label="Dashboard beenden" title="Dashboard beenden">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>
+      </button>
+    </div>
+  </header>
+  <main id="main">
+    <div id="envs" class="envs"></div>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

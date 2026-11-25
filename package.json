@@ -1,0 +1,25 @@
+{
+  "name": "aem-health-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gesundheits-Dashboard für AEM-Umgebungen mit analogen Messgeräten (rein lesend)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "probe": "tsx scripts/probe.ts",
+    "check": "tsx scripts/check.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"public/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "18.0.10",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.6",
+    "typescript": "5.9.3"
+  }
+}
