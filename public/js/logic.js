@@ -70,6 +70,14 @@ export function unknownHint(counts) {
   return `${counts.unknown} von ${total} Kriterien unbekannt. Ohne vollständige Messung gibt es keinen Score.`;
 }
 
+/** Erklärt Gesamt-Warnung bei grünem Score: ein einzelnes Kriterium zählt nur anteilig in den Score, löst aber die Warnung aus. */
+export function warnHint(overall) {
+  const { warn = 0, crit = 0, unknown = 0 } = overall.counts ?? {};
+  const n = warn + crit;
+  if (overall.status !== 'warn' || unknown || !n || overall.score === null || overall.score < 80) return '';
+  return `${n} ${n === 1 ? 'Kriterium ist' : 'Kriterien sind'} nicht in Ordnung. Der Score gewichtet das nur anteilig, die Warnung bleibt.`;
+}
+
 /** Gesamttext für Screenreader: "DEV: Kritisch, Score 30 von 100". */
 export function overallText(env) {
   return `${env.label}: ${overallWord(env.overall)}, ${env.overall.score === null ? 'Score nicht berechenbar' : `Score ${env.overall.score} von 100`}`;

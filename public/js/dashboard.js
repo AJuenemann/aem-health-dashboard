@@ -1,4 +1,4 @@
-import { STATUS_ICON, groupChecks, overallText, overallWord, relTime, scoreText, staleness, unknownHint } from './logic.js';
+import { STATUS_ICON, groupChecks, overallText, overallWord, relTime, scoreText, staleness, unknownHint, warnHint } from './logic.js';
 import { createTile } from './tile.js';
 import { createGauge } from './instruments.js';
 import { SCORE_ZONES } from './geometry.js';
@@ -82,7 +82,7 @@ export function createDashboard(root, { onUnlock, onOpen, onMaintenance }) {
         view.maintBtn.textContent = maint ? 'Wartung beenden' : 'Wartung';
         view.maintBtn.title = maint ? 'Prüfungen wieder aufnehmen' : 'In Wartung setzen: keine Prüfungen und keine Anfragen';
         view.overall.textContent = maint ? '⚙ In Wartung' : `${STATUS_ICON[env.overall.status]} ${overallWord(env.overall)} · ${scoreText(env.overall)}`;
-        view.hint.textContent = maint ? '' : unknownHint(env.overall.counts);
+        view.hint.textContent = maint ? '' : unknownHint(env.overall.counts) || warnHint(env.overall);
         view.hint.hidden = !view.hint.textContent;
         view.overall.setAttribute('aria-label', maint ? `${env.label}: In Wartung` : overallText(env));
         view.main.update(env.overall.score, env.overall.status);

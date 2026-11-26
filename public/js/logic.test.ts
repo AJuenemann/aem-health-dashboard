@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatValue, groupChecks, isStale, overallText, overallWord, retryNote, unknownHint, relTime, staleness } from './logic.js';
+import { formatValue, groupChecks, isStale, overallText, overallWord, retryNote, unknownHint, warnHint, relTime, staleness } from './logic.js';
 
 const gauge = { id: 'a', label: 'A', element: 'gauge', unit: 'ms', group: 'x' };
 const lamp = { id: 'l', label: 'L', element: 'lamp', group: 'y' };
@@ -52,6 +52,14 @@ test('Gesamttext bei unbekannten Kriterien', () => {
   assert.equal(unknownHint(counts(15, 0)), '');
   assert.match(unknownHint(counts(12, 3)), /^3 von 15 /);
   assert.match(unknownHint(counts(0, 15)), /^Keine Messung/);
+});
+
+test('warnHint erklärt Warnung bei grünem Score', () => {
+  const o = (status: string, score: number | null, warn: number, unknown = 0) => ({ status, score, counts: { ok: 14, warn, crit: 0, unknown } });
+  assert.match(warnHint(o('warn', 94, 1)), /^1 Kriterium ist /);
+  assert.equal(warnHint(o('warn', 60, 1)), '');
+  assert.equal(warnHint(o('ok', 100, 0)), '');
+  assert.equal(warnHint(o('warn', null, 1, 2)), '');
 });
 
 test('retryNote: Wiederholung, Ausfall und Häufung', () => {
