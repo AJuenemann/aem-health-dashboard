@@ -31,8 +31,10 @@ export function createDashboard(root, { onUnlock, onOpen, onMaintenance }) {
     overall.setAttribute('role', 'status');
     const hint = el('p', 'env-hint');
     const meta = el('p', 'env-meta');
+    const version = el('p', 'env-version');
+    version.hidden = true;
     const titles = el('div', 'env-titles');
-    titles.append(title, overall, hint, meta);
+    titles.append(title, version, overall, hint, meta);
     const maintBtn = el('button', 'btn env-maint', 'Wartung');
     maintBtn.type = 'button';
     maintBtn.addEventListener('click', () => onMaintenance(env.id, maintBtn.getAttribute('aria-pressed') !== 'true'));
@@ -62,7 +64,7 @@ export function createDashboard(root, { onUnlock, onOpen, onMaintenance }) {
     }
     section.append(head, banner, body);
     root.append(section);
-    return { section, tiles, main, overall, hint, maintBtn, meta, banner, bannerText, unlock };
+    return { section, tiles, main, overall, hint, version, maintBtn, meta, banner, bannerText, unlock };
   }
 
   return {
@@ -70,6 +72,11 @@ export function createDashboard(root, { onUnlock, onOpen, onMaintenance }) {
       for (const env of state.envs) {
         const view = envs.get(env.id) ?? (envs.set(env.id, build(env, state.groups)), envs.get(env.id));
         const maint = env.maintenance != null;
+        const v = env.versions;
+        const parts = [v.aem && `AEM ${v.aem}`, v.java && `Java ${v.java}`, v.oak && `Oak ${v.oak}`].filter(Boolean);
+        view.version.hidden = !parts.length;
+        view.version.textContent = parts.length ? `Author: ${parts.join(' · ')}` : '';
+        view.version.title = 'Versionen der Author-Instanz: AEM laut Produktinfo, Java laut JVM-Properties, Oak aus den OSGi-Bundles. Prüfung alle 5 Minuten.';
         view.section.dataset.status = env.overall.status;
         view.maintBtn.setAttribute('aria-pressed', String(maint));
         view.maintBtn.textContent = maint ? 'Wartung beenden' : 'Wartung';

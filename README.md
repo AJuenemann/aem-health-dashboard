@@ -32,6 +32,7 @@ gehört ein Reverse Proxy mit Anmeldung davor.
 | 30 s | Alter des ältesten Queue-Eintrags | Zeigerinstrument |
 | 30 s | Antwortzeit Author und Publish | Zeigerinstrument |
 | 5 min | Inaktive OSGi-Bundles, wartende Sling-Jobs | Zählwerk |
+| 5 min | Versionen der Author-Instanz: AEM, Java, Oak (nur Anzeige, kein Kriterium; Publish ist anonym nicht lesbar) | Text neben dem Umgebungsnamen |
 | 5 min | Heap-Auslastung | Schauglas |
 | 5 min | Disk-Belegung | Schauglas |
 | 5 min | Fehlerseite 404, Samples vorhanden | Lampe |

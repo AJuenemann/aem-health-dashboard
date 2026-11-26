@@ -15,6 +15,7 @@ const envState = (locked: string | null = null): EnvState => ({
   checks: [{ def, id: 'resp_author', value: 100, at: 1, status: 'ok' }],
   overall: { status: 'ok', score: 100, counts: { ok: 1, warn: 0, crit: 0, unknown: 0 } },
   maintenance: null,
+  versions: { aem: null, java: null, oak: null },
   locked,
   requestsPerMinute: { author: 5, publish: 1 },
   updatedAt: { fast: 1, slow: null },

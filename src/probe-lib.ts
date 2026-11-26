@@ -23,6 +23,7 @@ export const TARGETS: ProbeTarget[] = [
   { name: 'hc-console-json', host: 'author', auth: true, path: '/system/console/healthcheck?format=json' },
   { name: 'hc-systemalive', host: 'author', auth: true, path: '/system/console/healthcheck?tags=systemalive' },
   { name: 'slingjobs', host: 'author', auth: true, path: '/system/console/slingevent.json' },
+  { name: 'jmx-runtime', host: 'author', auth: true, path: '/system/console/jmx/java.lang%3Atype%3DRuntime' },
   { name: 'status-produkt', host: 'author', auth: true, path: '/system/console/status-productinfo.json' },
   { name: 'workflow-instanzen', host: 'author', auth: true, path: '/etc/workflow/instances.json' },
   { name: 'samples-seiten', host: 'author', auth: true, path: '/content/samples/de.json' },

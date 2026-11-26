@@ -35,11 +35,12 @@ main { padding: var(--space-5); }
 .env-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-3); }
 .env-titles { flex: 1 1 220px; display: grid; gap: var(--space-1); }
 .env-head h2 { font-size: var(--fs-xl); }
-.env-overall { font-size: var(--fs-lg); font-weight: 700; }
+.env-overall { font-size: var(--fs-lg); font-weight: 700; margin-top: 1.4em; }
 .env[data-status="ok"] .env-overall { color: var(--pass); }
 .env[data-status="warn"] .env-overall { color: var(--flaky); }
 .env[data-status="crit"] .env-overall { color: var(--fail); }
 .env[data-status="unknown"] .env-overall { color: var(--text-muted); }
+.env-version { color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; }
 .env-hint { font-size: var(--fs-sm); color: var(--text-muted); }
 .env-maint { align-self: flex-start; font-size: var(--fs-sm); }
 .env-maint[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }

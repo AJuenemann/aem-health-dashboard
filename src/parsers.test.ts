@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diskPercentUsed, enabledAgents, heapPercent, htmlToCells, inactiveBundles, jmxValue, numberAfter, parseQueue } from './parsers.ts';
+import { aemVersion, diskPercentUsed, javaVersion, oakVersion, enabledAgents, heapPercent, htmlToCells, inactiveBundles, jmxValue, numberAfter, parseQueue } from './parsers.ts';
 
 // Ausschnitte nach den aufgezeichneten Antworten (DEV 25.11.2026).
 const HEAP_HTML = `<table><tr><td>Attribute Name</td><td>Attribute Value</td></tr>
@@ -60,4 +60,19 @@ test('parseQueue: blockiert mit Einträgen, leer, ohne Status', () => {
   const empty = JSON.stringify({ metaData: { queueStatus: { isBlocked: false, isPaused: false } }, queue: [] });
   assert.deepEqual(parseQueue(empty), { blocked: false, paused: false, length: 0, oldest: null });
   assert.equal(parseQueue('{"x":1}'), null);
+});
+
+test('aemVersion: aus der aufgezeichneten Produktinfo, sonst null', () => {
+  const body = '[\n    "License",\n    "  Product : CRX (2.0.0.20100122)",\n    "Installed Products",\n    "  Adobe Experience Manager (6.5.25.0)",\n    ""]';
+  assert.equal(aemVersion(body), '6.5.25.0');
+  assert.equal(aemVersion('[]'), null);
+  assert.equal(aemVersion('<html>Login</html>'), null);
+});
+
+test('javaVersion und oakVersion: aus den aufgezeichneten Antworten, sonst null', () => {
+  assert.equal(javaVersion('<td>SpecVersion</td><td>1.8</td><td>java.version</td><td>1.8.0_513</td><td>user.dir</td>'), '1.8.0_513');
+  assert.equal(javaVersion('<td>nichts</td>'), null);
+  assert.equal(oakVersion('{"data":[{"symbolicName":"x","version":"1"},{"symbolicName":"org.apache.jackrabbit.oak-core","version":"1.22.24"}]}'), '1.22.24');
+  assert.equal(oakVersion('{"data":[]}'), null);
+  assert.equal(oakVersion('kein json'), null);
 });

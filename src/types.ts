@@ -54,3 +54,10 @@ export interface Overall {
   score: number | null;
   counts: Record<Status, number>;
 }
+
+/** Versionen der Author-Instanz (nur Anzeige, kein Kriterium). `null` = nicht gelesen. */
+export interface Versions {
+  aem: string | null;
+  java: string | null;
+  oak: string | null;
+}

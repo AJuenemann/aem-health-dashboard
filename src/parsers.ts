@@ -106,3 +106,25 @@ export function parseQueue(body: string): QueueInfo | null {
     return null;
   }
 }
+
+/** AEM-Version aus `status-productinfo.json` ("Adobe Experience Manager (6.5.25.0)"), sonst null. */
+export function aemVersion(body: string): string | null {
+  return /Adobe Experience Manager \(([^)]+)\)/.exec(body)?.[1]?.trim() || null;
+}
+
+/** JMX `java.lang:type=Runtime`: Java-Version aus den System-Properties (`java.version|1.8.0_513`). */
+export function javaVersion(html: string): string | null {
+  const cells = htmlToCells(html);
+  const i = cells.indexOf('java.version');
+  return i < 0 ? null : cells[i + 1] || null;
+}
+
+/** `bundles.json`: Version des Oak-Kerns (Bundle `org.apache.jackrabbit.oak-core`). */
+export function oakVersion(body: string): string | null {
+  try {
+    const j = JSON.parse(body) as { data?: { symbolicName?: string; version?: string }[] };
+    return j.data?.find((b) => b.symbolicName === 'org.apache.jackrabbit.oak-core')?.version || null;
+  } catch {
+    return null;
+  }
+}

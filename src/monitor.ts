@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
 import { AemClient } from './aem-client.ts';
-import { runFast, runSlow, type Ctx } from './checks.ts';
+import { fetchVersions, runFast, runSlow, type Ctx } from './checks.ts';
 import type { Credentials, EnvConfig } from './config.ts';
 import { evaluate, overall } from './evaluate.ts';
 import { createLoop, type Loop } from './scheduler.ts';
-import type { CheckDef, ChecksConfig, CheckResult, Evaluated, Overall } from './types.ts';
+import type { CheckDef, ChecksConfig, CheckResult, Evaluated, Overall, Versions } from './types.ts';
 
 export interface EnvState {
   id: string;
@@ -13,6 +13,8 @@ export interface EnvState {
   overall: Overall;
   /** Wartungsmodus: Grund (leer = ohne Angabe) oder null. Es werden keine Anfragen gesendet. */
   maintenance: string | null;
+  /** Versionen der Author-Instanz; leer, solange nicht gelesen (auch in Wartung). */
+  versions: Versions;
   /** Grund der Sperre (Anmeldung abgelehnt) oder null. */
   locked: string | null;
   requestsPerMinute: { author: number; publish: number };
@@ -25,6 +27,8 @@ interface EnvRuntime {
   ctx: Ctx;
   /** Wartungsmodus: Grund (leer = ohne Angabe) oder null. */
   maintenance: string | null;
+  /** Versionen der Author-Instanz; ein Wert bleibt bei einem Fehlversuch bestehen. */
+  versions: Versions;
   results: Map<string, Evaluated>;
   /** Aufeinanderfolgende Fehlmessungen je Check (für die Entprellung). */
   misses: Map<string, number>;
@@ -55,7 +59,9 @@ export class Monitor extends EventEmitter {
         author: new AemClient({ baseUrl: cfg.baseUrl, credentials }),
         publish: new AemClient({ baseUrl: cfg.publishUrl }),
       };
-      this.envs.set(cfg.id, { cfg, ctx: clients, maintenance: cfg.maintenance ? (typeof cfg.maintenance === 'string' ? cfg.maintenance : '') : null, results: new Map(), misses: new Map(), retryTimes: new Map(), updatedAt: { fast: null, slow: null }, loops: [] });
+      const rt: EnvRuntime = { cfg, ctx: { ...clients }, maintenance: cfg.maintenance ? (typeof cfg.maintenance === 'string' ? cfg.maintenance : '') : null, versions: { aem: null, java: null, oak: null }, results: new Map(), misses: new Map(), retryTimes: new Map(), updatedAt: { fast: null, slow: null }, loops: [] };
+      rt.ctx.onInfo = (patch) => this.mergeVersions(rt, patch);
+      this.envs.set(cfg.id, rt);
     }
   }
 
@@ -83,6 +89,7 @@ export class Monitor extends EventEmitter {
     env.loops.forEach((l) => l.stop());
     env.loops = [];
     env.results.clear();
+    env.versions = { aem: null, java: null, oak: null };
     env.misses.clear();
     env.retryTimes.clear();
     env.updatedAt = { fast: null, slow: null };
@@ -120,8 +127,15 @@ export class Monitor extends EventEmitter {
   }
 
   private async runTempo(env: EnvRuntime, tempo: 'fast' | 'slow'): Promise<void> {
-    const results = await (tempo === 'fast' ? runFast(env.ctx) : runSlow(env.ctx));
+    const [results, versions] = await Promise.all([tempo === 'fast' ? runFast(env.ctx) : runSlow(env.ctx), tempo === 'slow' ? fetchVersions(env.ctx) : null]);
+    if (versions) this.mergeVersions(env, versions);
     this.apply(env, results, tempo);
+  }
+
+  /** Übernimmt gelesene Versionen. Ein fehlender Wert überschreibt den letzten bekannten nicht. */
+  private mergeVersions(env: EnvRuntime, patch: Partial<Versions>): void {
+    if (env.maintenance !== null) return;
+    for (const k of ['aem', 'java', 'oak'] as const) if (patch[k]) env.versions[k] = patch[k];
   }
 
   private apply(env: EnvRuntime, results: CheckResult[], tempo: 'fast' | 'slow'): void {
@@ -161,6 +175,7 @@ export class Monitor extends EventEmitter {
       label: env.cfg.label,
       checks,
       maintenance: m,
+      versions: { ...env.versions },
       overall: overall(this.defs, env.results),
       locked: env.ctx.author.locked,
       requestsPerMinute: { author: env.ctx.author.requestsPerMinute(), publish: env.ctx.publish.requestsPerMinute() },

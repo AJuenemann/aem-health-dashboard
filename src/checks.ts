@@ -1,6 +1,6 @@
 import { LockedError, retryScope, type AemClient, type AemResponse } from './aem-client.ts';
-import { diskPercentUsed, enabledAgents, heapPercent, htmlToCells, inactiveBundles, jmxValue, numberAfter, parseQueue } from './parsers.ts';
-import type { CheckResult } from './types.ts';
+import { aemVersion, diskPercentUsed, enabledAgents, heapPercent, htmlToCells, inactiveBundles, javaVersion, jmxValue, numberAfter, oakVersion, parseQueue } from './parsers.ts';
+import type { CheckResult, Versions } from './types.ts';
 
 /** Seiten für Publish-Prüfungen (siehe docs/ENDPOINTS.md). */
 export const PUBLISH_PAGE = '/content/zv/de.html';
@@ -12,6 +12,8 @@ export interface Ctx {
   author: AemClient;
   publish: AemClient;
   now?: () => number;
+  /** Meldet Versionen, die ein Check nebenbei findet (Oak steckt in bundles.json). */
+  onInfo?: (patch: Partial<Versions>) => void;
 }
 
 const ok = (r: AemResponse): boolean => r.status === 200;
@@ -135,6 +137,7 @@ export async function runSlow(ctx: Ctx): Promise<CheckResult[]> {
     guard(['bundles_inactive'], at, async () => {
       const b = await authorGet(ctx, '/system/console/bundles.json');
       const n = b.res && ok(b.res) ? inactiveBundles(b.res.body) : null;
+      if (b.res && ok(b.res)) ctx.onInfo?.({ oak: oakVersion(b.res.body) });
       return [{ id: 'bundles_inactive', value: n, detail: n === null ? b.why || 'unlesbar' : undefined, at }];
     }),
     guard(['heap'], at, async () => {
@@ -155,4 +158,11 @@ export async function runSlow(ctx: Ctx): Promise<CheckResult[]> {
     }),
   ]);
   return parts.flat();
+}
+
+/** AEM- und Java-Version der Author-Instanz (Anzeige, kein Kriterium). Nicht lesbar = null. Zwei Anfragen, nacheinander. */
+export async function fetchVersions(ctx: Ctx): Promise<Pick<Versions, 'aem' | 'java'>> {
+  const p = await authorGet(ctx, '/system/console/status-productinfo.json');
+  const r = await authorGet(ctx, '/system/console/jmx/java.lang%3Atype%3DRuntime');
+  return { aem: p.res && ok(p.res) ? aemVersion(p.res.body) : null, java: r.res && ok(r.res) ? javaVersion(r.res.body) : null };
 }
