@@ -29,6 +29,13 @@ class StubMonitor extends EventEmitter implements MonitorLike {
     this.maint.push([id, on, reason]);
     return id === 'dev';
   }
+  refreshed = 0;
+  refreshedEnvs: (string | undefined)[] = [];
+  async refreshAll(envId?: string) {
+    this.refreshedEnvs.push(envId);
+    if (envId === 'zzz') return null;
+    return this.refreshed++ === 0 ? { ran: true, nextInMs: 15000 } : { ran: false, nextInMs: 7000 };
+  }
   async unlock(id: string) {
     this.unlocked.push(id);
     return id === 'dev';
@@ -78,6 +85,18 @@ test('unlock: nur POST mit Schutz-Header', async () => {
   assert.equal((await fetch(`${base}/api/unlock?env=dev`, { method: 'POST', headers: h })).status, 200);
   assert.equal((await fetch(`${base}/api/unlock?env=zzz`, { method: 'POST', headers: h })).status, 404);
   assert.deepEqual(monitor.unlocked, ['dev', 'zzz']);
+});
+
+test('refresh: nur POST mit Schutz-Header', async () => {
+  assert.equal((await fetch(`${base}/api/refresh`, { method: 'POST' })).status, 403);
+  assert.equal((await fetch(`${base}/api/refresh`, { method: 'POST', headers: { 'X-Requested-With': 'dashboard' } })).status, 200);
+  assert.equal(monitor.refreshed, 1);
+  const again = await fetch(`${base}/api/refresh`, { method: 'POST', headers: { 'X-Requested-With': 'dashboard' } });
+  assert.equal(again.status, 429);
+  assert.equal((await fetch(`${base}/api/refresh?env=zzz`, { method: 'POST', headers: { 'X-Requested-With': 'dashboard' } })).status, 404);
+  await fetch(`${base}/api/refresh?env=dev`, { method: 'POST', headers: { 'X-Requested-With': 'dashboard' } });
+  assert.deepEqual(monitor.refreshedEnvs, [undefined, undefined, 'zzz', 'dev']);
+  assert.deepEqual(await again.json(), { ok: false, nextInMs: 7000 });
 });
 
 test('static: Startseite ja, Pfad-Ausbruch nein', async () => {

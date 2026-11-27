@@ -22,6 +22,10 @@
     <div class="top-tools">
       <div id="view" class="view" role="group" aria-label="Ansicht"></div>
       <span id="conn" class="conn" role="status" data-state="connecting">Verbinde …</span>
+      <button id="refresh" class="btn btn-refresh" type="button" title="Alle Prüfungen jetzt ausführen">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4.5h-4.5"/></svg>
+        <span id="refresh-label">Jetzt prüfen</span>
+      </button>
       <button id="theme" class="btn btn-icon" type="button" aria-pressed="false" aria-label="Hell / Dunkel" title="Hell / Dunkel"></button>
       <button id="power" class="btn btn-power" type="button" aria-label="Dashboard beenden" title="Dashboard beenden">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>
@@ -29,6 +33,7 @@
     </div>
   </header>
   <main id="main">
+    <div id="net-banner" class="banner" data-kind="net" role="alert" hidden></div>
     <div id="envs" class="envs"></div>
   </main>
   <script type="module" src="app.js"></script>

@@ -4,7 +4,7 @@ import { MISSING_PAGE } from './checks.ts';
 import { loadChecks } from './evaluate.ts';
 import { AemClient } from './aem-client.ts';
 import { startFakeAem } from './fake-aem.ts';
-import { Monitor } from './monitor.ts';
+import { Monitor, REFRESH_COOLDOWN_MS } from './monitor.ts';
 
 test('Entprellung: erste Fehlmessung zeigt den alten Wert, die zweite in Folge "unbekannt"', async () => {
   const a = await startFakeAem({ '/libs/granite/core/content/login.html': { body: 'login' } });
@@ -33,6 +33,26 @@ test('Entprellung: erste Fehlmessung zeigt den alten Wert, die zweite in Folge "
   await p.close();
 });
 
+test('VPN: nach Wiederverbindung meldet der nächste Lauf wieder Werte (ohne Neustart)', async () => {
+  const a = await startFakeAem({ '/libs/granite/core/content/login.html': { body: 'login' } });
+  const p = await startFakeAem({});
+  const cfg = { id: 'dev', label: 'DEV', baseUrl: a.url, publishUrl: p.url };
+  let up = false;
+  const m = new Monitor([cfg], loadChecks(), { user: 'u', password: 'p' }, () => ({
+    author: new AemClient({ baseUrl: a.url, credentials: { user: 'u', password: 'p' }, timeoutMs: 150 }),
+    publish: new AemClient({ baseUrl: p.url, timeoutMs: 150 }),
+    reach: async () => (up ? { ok: true, ms: 1 } : { ok: false, ms: 1, error: 'Timeout' }),
+  }));
+  const val = (id: string) => m.state()[0]!.checks.find((c) => c.def.id === id)!.value;
+  await m.runOnce();
+  assert.deepEqual([val('vpn'), val('author_up')], [0, null]);
+  up = true;
+  assert.equal((await m.refreshAll())?.ran, true);
+  assert.deepEqual([val('vpn'), val('author_up')], [1, 1]);
+  await a.close();
+  await p.close();
+});
+
 test('Wartungsmodus: keine Anfragen, alle Kriterien unbekannt mit Hinweis', async () => {
   const a = await startFakeAem({});
   const p = await startFakeAem({});
@@ -45,6 +65,28 @@ test('Wartungsmodus: keine Anfragen, alle Kriterien unbekannt mit Hinweis', asyn
   assert.equal(s.maintenance, 'Upgrade');
   assert.equal(s.checks[0]!.detail, 'In Wartung, nicht geprüft.');
   assert.equal(a.log.length + p.log.length, 0);
+  await a.close();
+  await p.close();
+});
+
+test('refreshAll: gleichzeitige Aufrufe teilen einen Durchgang, danach Pause', async () => {
+  const a = await startFakeAem({});
+  const p = await startFakeAem({});
+  const cfg = { id: 'dev', label: 'DEV', baseUrl: a.url, publishUrl: p.url };
+  const m = new Monitor([cfg], loadChecks(), { user: 'u', password: 'p' }, () => ({
+    author: new AemClient({ baseUrl: a.url, credentials: { user: 'u', password: 'p' }, timeoutMs: 150 }),
+    publish: new AemClient({ baseUrl: p.url, timeoutMs: 150 }),
+  }));
+  const [r1, r2] = await Promise.all([m.refreshAll(), m.refreshAll()]);
+  assert.equal(r1?.ran, true);
+  assert.equal(r2?.ran, true);
+  const n = a.log.length + p.log.length;
+  assert.ok(n > 0);
+  const again = await m.refreshAll();
+  assert.equal(again?.ran, false);
+  assert.ok(again && again.nextInMs > 0 && again.nextInMs <= REFRESH_COOLDOWN_MS);
+  assert.equal(await m.refreshAll('gibtsnicht'), null);
+  assert.equal(a.log.length + p.log.length, n); // Pause: keine neuen Anfragen
   await a.close();
   await p.close();
 });

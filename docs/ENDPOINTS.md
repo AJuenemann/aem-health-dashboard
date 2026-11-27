@@ -8,6 +8,7 @@ Rohantworten liegen lokal unter `data/probe/<env>/` (gitignoriert).
 
 | Kriterium | Endpunkt | Auswertung | Dauer DEV/TEST | Größe |
 |---|---|---|---|---|
+| VPN / Netzwerk | kein HTTP: nur DNS + TCP-Verbindung zu `<author-host>:443` (3 s Timeout, `src/reach.ts`) | Verbindung steht = 1, sonst 0 mit Fehlercode (z. B. `ENOTFOUND`, Timeout) | – | 0 Byte gesendet |
 | Author erreichbar | `GET /libs/granite/core/content/login.html` (anonym) | HTTP 200 | 1,4–2,3 s (Erstaufruf) | 11 KB |
 | Replication-Agents | `GET /etc/replication/agents.author.2.json` | je Agent `jcr:content.enabled == "true"`; Publish-Agent: `transportUri` enthält `/bin/receive` | 70–160 ms (TEST einmal 2,4 s) | 18 KB |
 | Queue je aktivem Agent | `GET /etc/replication/agents.author/<id>/jcr:content.queue.json` | `metaData.queueStatus.isBlocked/isPaused`, `queue[].time` (ältester Eintrag), Länge | 70–90 ms | 0,5–16 KB |
@@ -18,10 +19,10 @@ Rohantworten liegen lokal unter `data/probe/<env>/` (gitignoriert).
 | Java-Version | `GET /system/console/jmx/java.lang%3Atype%3DRuntime` (HTML) | Zeile `java.version` (System-Properties), z. B. `1.8.0_513` | 205–240 ms | 25 KB |
 | Oak-Version | kein eigener Aufruf: aus `bundles.json` (siehe oben), Bundle `org.apache.jackrabbit.oak-core`, Feld `version` | z. B. `1.22.24` | – | – |
 | Produkt/Version | `GET /system/console/status-productinfo.json` | Zeile `Adobe Experience Manager (x.y.z)` | 55–70 ms | 246 B |
-| Samples Author | `GET /content/samples/de.json`, `/content/dam/samples.json` | HTTP 200 | 60–105 ms | 0,15 KB |
+| Samples Author (`samples_author`) | `GET /content/samples/de.json`, `/content/dam/samples.json` | HTTP 200 | 60–105 ms | 0,15 KB |
 | Publish Startseite | `GET /content/zv/de.html` (anonym, Publish) | HTTP 200 | 1,4–2,4 s | 173 KB |
 | Fehlerseite | `GET /content/zv/de/qa-seite-gibt-es-nicht.html` (Publish) | HTTP 404 und Titel „Fehlerseite 404“ | 0,55 s | 77 KB |
-| Samples Publish | `GET /content/samples/de.html` (Publish) | HTTP 200 | 0,16–0,4 s | 47 KB |
+| Samples Publish (`samples_publish`) | `GET /content/samples/de.html` (Publish) | HTTP 200 | 0,16–0,4 s | 47 KB |
 
 ## Nicht tragfähig
 
@@ -47,7 +48,7 @@ TEST (Befund, kein Fehler der Probe):
 - Agents `publish_aem-publish1-test` und `flush_aem-publish1-dispatcher-test`: **blockiert**, je 50 Einträge, ältester ca. 24,5 h. Das passt zu den bekannten Problemen auf TEST (JET 24.11.2026). Das Dashboard soll genau das rot anzeigen.
 - Die Queue-Liste scheint bei 50 Einträgen zu enden. „50“ ist deshalb „mindestens 50“, nicht die genaue Länge.
 - Workflow-Instanzen: 4574 (inkl. beendeter).
-- Samples: Author und Publish fehlen (HTTP 404), bekannt.
+- Samples: Author und Publish fehlen (HTTP 404), bekannt. Stand 27.11.2026: Author vorhanden, Publish weiter HTTP 404.
 
 ## Last der Probe
 

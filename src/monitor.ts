@@ -39,6 +39,7 @@ interface EnvRuntime {
 }
 
 const RETRY_WINDOW_MS = 3_600_000;
+export const REFRESH_COOLDOWN_MS = 15_000;
 
 /** Hält den Zustand aller Umgebungen und betreibt die zwei Takte. Ereignis `update` bei jeder Änderung. */
 export class Monitor extends EventEmitter {
@@ -112,6 +113,42 @@ export class Monitor extends EventEmitter {
     }
   }
 
+  private readonly inflight = new Map<string, Promise<void>>();
+  private readonly refreshing = new Map<string, Promise<void>>();
+  private readonly lastRefreshAt = new Map<string, number>();
+
+  /**
+   * Löst beide Takte sofort aus: für eine Umgebung (`envId`) oder alle. Wartung und Sperre bleiben unberührt.
+   * Je Umgebung gilt: läuft schon ein Durchgang, wird er mitgenutzt. Sonst gilt eine Pause seit dem letzten Start (für alle Browser).
+   * Rückgabe: ran = mindestens eine Umgebung lief, nextInMs = Wartezeit bis zum nächsten erlaubten Start; null = unbekannte Umgebung.
+   */
+  async refreshAll(envId?: string): Promise<{ ran: boolean; nextInMs: number } | null> {
+    const targets = envId ? [this.envs.get(envId)].filter((e) => e !== undefined) : [...this.envs.values()];
+    if (targets.length === 0) return null;
+    const waits: Promise<void>[] = [];
+    let ran = false;
+    for (const e of targets) {
+      if (e.maintenance !== null) continue;
+      const id = e.cfg.id;
+      let p = this.refreshing.get(id);
+      if (!p) {
+        if ((this.lastRefreshAt.get(id) ?? -Infinity) + REFRESH_COOLDOWN_MS > Date.now()) continue;
+        this.lastRefreshAt.set(id, Date.now());
+        p = (async () => {
+          await this.runTempo(e, 'fast');
+          await this.runTempo(e, 'slow');
+        })().finally(() => this.refreshing.delete(id));
+        this.refreshing.set(id, p);
+      }
+      ran = true;
+      waits.push(p);
+    }
+    await Promise.all(waits);
+    const nextInMs = Math.max(0, ...targets.map((e) => (this.lastRefreshAt.get(e.cfg.id) ?? -Infinity) + REFRESH_COOLDOWN_MS - Date.now()));
+    // Nur Wartung: nichts zu tun, aber auch nichts zu sperren.
+    return { ran: ran || targets.every((e) => e.maintenance !== null), nextInMs };
+  }
+
   /** Hebt die Sperre auf (manueller Klick/Neustart) und prüft sofort neu. */
   async unlock(envId: string): Promise<boolean> {
     const env = this.envs.get(envId);
@@ -126,7 +163,18 @@ export class Monitor extends EventEmitter {
     return [...this.envs.values()].map((e) => this.stateOf(e));
   }
 
-  private async runTempo(env: EnvRuntime, tempo: 'fast' | 'slow'): Promise<void> {
+  /** Läuft derselbe Takt der Umgebung schon (Schleife, Button, Entsperren), wird auf diesen Lauf gewartet statt neu angefragt. */
+  private runTempo(env: EnvRuntime, tempo: 'fast' | 'slow'): Promise<void> {
+    const key = `${env.cfg.id}:${tempo}`;
+    let p = this.inflight.get(key);
+    if (!p) {
+      p = this.doRunTempo(env, tempo).finally(() => this.inflight.delete(key));
+      this.inflight.set(key, p);
+    }
+    return p;
+  }
+
+  private async doRunTempo(env: EnvRuntime, tempo: 'fast' | 'slow'): Promise<void> {
     const [results, versions] = await Promise.all([tempo === 'fast' ? runFast(env.ctx) : runSlow(env.ctx), tempo === 'slow' ? fetchVersions(env.ctx) : null]);
     if (versions) this.mergeVersions(env, versions);
     this.apply(env, results, tempo);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatValue, groupChecks, isStale, overallText, overallWord, retryNote, unknownHint, warnHint, relTime, staleness } from './logic.js';
+import { formatValue, groupChecks, isStale, overallText, overallWord, retryNote, unknownHint, warnHint, relTime, staleness, netDownEnvs, netBannerText } from './logic.js';
 
 const gauge = { id: 'a', label: 'A', element: 'gauge', unit: 'ms', group: 'x' };
 const lamp = { id: 'l', label: 'L', element: 'lamp', group: 'y' };
@@ -67,4 +67,12 @@ test('retryNote: Wiederholung, Ausfall und Häufung', () => {
   assert.equal(retryNote({ retried: true, retries1h: 1 }), '↻ Wiederholt angefragt.');
   assert.match(retryNote({ held: true, retried: true }), /^Letzte Messung fehlgeschlagen.*↻/);
   assert.match(retryNote({ retried: true, retries1h: 3 }), /3× in der letzten Stunde: bitte genauer prüfen/);
+});
+
+test('VPN-Hinweis: nur Umgebungen mit vpn = 0, Wartung ausgenommen', () => {
+  const env = (label: string, vpn: number | null, maintenance: string | null = null) => ({ label, maintenance, checks: [{ def: { id: 'vpn' }, value: vpn }, { def: { id: 'x' }, value: 0 }] });
+  const down = netDownEnvs([env('DEV', 0), env('TEST', 1), env('PROD', null), env('WART', 0, 'Upgrade')]);
+  assert.deepEqual(down.map((e: { label: string }) => e.label), ['DEV']);
+  assert.match(netBannerText(down), /VPN getrennt.*Betroffen: DEV\./);
+  assert.equal(netBannerText([]), '');
 });

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AemClient } from './aem-client.ts';
-import { MISSING_PAGE, PUBLISH_PAGE, runFast, runSlow, type Ctx } from './checks.ts';
+import { MISSING_PAGE, PUBLISH_PAGE, fetchVersions, runFast, runSlow, type Ctx } from './checks.ts';
+import { tcpReach } from './reach.ts';
 import { startFakeAem, type FakeAem, type Route } from './fake-aem.ts';
 import type { CheckResult } from './types.ts';
 
@@ -55,8 +56,8 @@ test('runFast: gesunder Zustand', async () => {
   const r = by(await runFast(s.ctx));
   await s.close();
   assert.deepEqual(
-    [r.author_up, r.login, r.publish_up, r.publish_agent, r.repl_blocked, r.repl_queue, r.repl_oldest],
-    [1, 1, 1, 1, 0, 0, 0],
+    [r.vpn, r.author_up, r.login, r.publish_up, r.publish_agent, r.repl_blocked, r.repl_queue, r.repl_oldest],
+    [1, 1, 1, 1, 1, 0, 0, 0],
   );
   assert.ok((r.resp_author ?? -1) >= 0 && (r.resp_publish ?? -1) >= 0);
 });
@@ -114,8 +115,8 @@ test('runSlow: gesunder Zustand', async () => {
   const r = by(await runSlow(s.ctx));
   await s.close();
   assert.deepEqual(
-    [r.error_page, r.samples, r.bundles_inactive, r.heap, r.disk, r.jobs_queued],
-    [1, 1, 0, 40, 75, 3],
+    [r.error_page, r.samples_author, r.samples_publish, r.bundles_inactive, r.heap, r.disk, r.jobs_queued],
+    [1, 1, 1, 0, 40, 75, 3],
   );
 });
 
@@ -125,8 +126,9 @@ test('runSlow: Samples fehlen auf Publish = rot, Fehlerseite roh = rot', async (
   const rs = await runSlow(s.ctx);
   await s.close();
   const r = by(rs);
-  assert.deepEqual([r.samples, r.error_page], [0, 0]);
-  assert.match(rs.find((x) => x.id === 'samples')?.detail ?? '', /Publish/);
+  // Author grün, nur Publish rot: getrennt sichtbar.
+  assert.deepEqual([r.samples_author, r.samples_publish, r.error_page], [1, 0, 0]);
+  assert.match(rs.find((x) => x.id === 'samples_publish')?.detail ?? '', /HTTP 404/);
 });
 
 test('Lastschutz: Anfragen pro Minute werden gezählt', async () => {
@@ -162,4 +164,52 @@ test('HTTP-Fehler werden nicht wiederholt', async () => {
   const tries = s.p.log.filter((l) => l === `GET ${MISSING_PAGE}`).length;
   await s.close();
   assert.equal(tries, 1);
+});
+
+test('runFast: vpn = 1 bei TCP-Verbindung, ohne HTTP-Anfrage an den Author', async () => {
+  const s = await setup(authorRoutes(), publishRoutes);
+  const r = await tcpReach(s.a.url);
+  await s.close();
+  assert.equal(r.ok, true);
+  assert.equal(s.a.log.length, 0);
+});
+
+test('runFast: vpn = 0 mit Grund, wenn der Host nicht erreichbar ist', async () => {
+  const s = await setup(authorRoutes(), publishRoutes);
+  s.ctx.reach = async () => ({ ok: false, ms: 3000, error: 'ENOTFOUND' });
+  const rs = await runFast(s.ctx);
+  await s.close();
+  const vpn = rs.find((r) => r.id === 'vpn');
+  assert.equal(vpn?.value, 0);
+  assert.match(vpn?.detail ?? '', /ENOTFOUND/);
+  assert.equal(rs.find((r) => r.id === 'author_up')?.value, null);
+});
+
+test('VPN getrennt: keine HTTP-Anfragen, alles andere unbekannt (schnell und langsam)', async () => {
+  const s = await setup(authorRoutes(), publishRoutes);
+  s.ctx.reach = async () => ({ ok: false, ms: 3000, error: 'Timeout nach 3000 ms' });
+  const fast = await runFast(s.ctx);
+  const slow = await runSlow(s.ctx);
+  const ver = await fetchVersions(s.ctx);
+  await s.close();
+  assert.equal(s.a.log.length + s.p.log.length, 0);
+  assert.equal(fast.length, 10);
+  assert.deepEqual(fast.filter((r) => r.value !== null).map((r) => r.id), ['vpn']);
+  assert.ok(slow.length === 7 && slow.every((r) => r.value === null && /VPN/.test(r.detail ?? '')));
+  assert.deepEqual(ver, { aem: null, java: null });
+  // Verbindung wieder da: der nächste schnelle Lauf hebt die Sperre auf.
+  const s2 = await setup(authorRoutes(), publishRoutes);
+  s2.ctx.netDown = true;
+  await runFast(s2.ctx);
+  await s2.close();
+  assert.equal(s2.ctx.netDown, false);
+});
+
+test('tcpReach: geschlossener Port ergibt ok=false mit Fehlercode', async () => {
+  const s = await setup({}, {});
+  const url = s.a.url;
+  await s.close();
+  const r = await tcpReach(url);
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'ECONNREFUSED');
 });

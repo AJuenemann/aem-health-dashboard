@@ -9,6 +9,8 @@ import type { History } from './history.ts';
 export interface MonitorLike extends EventEmitter {
   state(): EnvState[];
   unlock(envId: string): Promise<boolean>;
+  /** Eine Umgebung oder alle. ran = Durchgang lief, nextInMs = Wartezeit bis zum nächsten Start; null = unbekannte Umgebung. */
+  refreshAll(envId?: string): Promise<{ ran: boolean; nextInMs: number } | null>;
   setMaintenance(envId: string, on: boolean, reason?: string): boolean;
 }
 
@@ -117,6 +119,13 @@ export function createApp(o: AppOptions): Server {
       if (req.method !== 'POST' || req.headers['x-requested-with'] !== 'dashboard') return json(res, 403, { error: 'Nicht erlaubt.' });
       const ok = await o.monitor.unlock(url.searchParams.get('env') ?? '');
       return json(res, ok ? 200 : 404, { ok });
+    }
+
+    if (path === '/api/refresh') {
+      if (req.method !== 'POST' || req.headers['x-requested-with'] !== 'dashboard') return json(res, 403, { error: 'Nicht erlaubt.' });
+      const r = await o.monitor.refreshAll(url.searchParams.get('env') || undefined);
+      if (!r) return json(res, 404, { ok: false });
+      return json(res, r.ran ? 200 : 429, { ok: r.ran, nextInMs: r.nextInMs });
     }
 
     if (path === '/api/maintenance') {

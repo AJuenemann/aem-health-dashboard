@@ -40,14 +40,16 @@ export function createTile(def, onOpen) {
 
   return {
     el,
-    update(check) {
+    /** `quiet`: Verbindung getrennt. Die Ursache steht im allgemeinen Hinweis, nicht in jeder Kachel. */
+    update(check, quiet = false) {
+      if (quiet) check = { ...check, detail: undefined };
       el.dataset.status = check.status;
       instrument.update(check);
       status.textContent = `${STATUS_ICON[check.status]} ${STATUS_TEXT[check.status]}`;
       const hint = retryNote(check);
       note.textContent = hint;
       note.dataset.alert = String(check.retries1h >= RETRY_ALERT);
-      detail.textContent = check.detail ?? (check.status === 'unknown' ? 'Noch keine Messung oder Wert nicht lesbar.' : '');
+      detail.textContent = check.detail ?? (quiet ? '' : check.status === 'unknown' ? 'Noch keine Messung oder Wert nicht lesbar.' : '');
       el.setAttribute('aria-label', `${def.label}: ${formatValue(def, check.value)}, ${STATUS_TEXT[check.status]}${check.detail ? `. ${check.detail}` : ''}${hint ? `. ${hint}` : ''}`);
     },
   };

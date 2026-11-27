@@ -1,8 +1,10 @@
 import { createDashboard } from './js/dashboard.js';
 import { openHistory } from './js/history-view.js';
+import { netBannerText, netDownEnvs } from './js/logic.js';
 
 const root = document.getElementById('envs');
 const conn = document.getElementById('conn');
+const netBanner = document.getElementById('net-banner');
 const themeBtn = document.getElementById('theme');
 
 // --- Theme (hell/dunkel über data-theme am <html>) ---
@@ -45,6 +47,9 @@ function applyView() {
   root.dataset.view = view;
   for (const b of viewBox.children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
   for (const s of root.children) s.hidden = view !== 'all' && s.dataset.env !== view;
+  const label = view === 'all' ? 'alle Umgebungen' : (state?.envs.find((e) => e.id === view)?.label ?? view);
+  document.getElementById('refresh').title = `Prüfungen jetzt ausführen: ${label}`;
+  resetRefreshButton();
 }
 function buildViewButtons(envs) {
   const opts = [...envs.map((e) => [e.id, e.label]), ['all', 'Alle Umgebungen']];
@@ -66,6 +71,11 @@ const render = () => {
   if (!viewBox.children.length) buildViewButtons(state.envs);
   dashboard.render(state);
   applyView();
+  // Allgemeiner Hinweis bei getrennter Verbindung, nur für die angezeigte Ansicht. Text nur bei Änderung setzen (Screenreader).
+  const shown = view === 'all' ? state.envs : state.envs.filter((e) => e.id === view);
+  const text = netBannerText(netDownEnvs(shown));
+  if (netBanner.textContent !== text) netBanner.textContent = text;
+  netBanner.hidden = !text;
 };
 
 function setConn(kind, text) {
@@ -120,6 +130,71 @@ setInterval(() => {
   if (!ended && document.visibilityState === 'visible' && Date.now() - lastEvent > STALL_MS) wake();
 }, 15_000);
 connect();
+
+// --- Alle Prüfungen sofort auslösen ---
+const refreshBtn = document.getElementById('refresh');
+const refreshLabel = document.getElementById('refresh-label');
+const IDLE_LABEL = 'Jetzt prüfen';
+let cooldownTimer = 0;
+let cooldownView = null;
+
+// Ansicht gewechselt: die Pause gilt nur für die zuvor geprüfte Ansicht, der Server entscheidet bei neuem Klick.
+function resetRefreshButton() {
+  if (!refreshBtn.disabled || refreshBtn.hasAttribute('aria-busy') || cooldownView === view) return;
+  clearInterval(cooldownTimer);
+  refreshBtn.disabled = false;
+  delete refreshBtn.dataset.done;
+  refreshLabel.textContent = IDLE_LABEL;
+}
+
+// Sperrt den Button bis zum Ablauf der Pause und zählt sichtbar herunter. Der Server erzwingt die Pause ohnehin.
+function startCooldown(ms, prefix) {
+  clearInterval(cooldownTimer);
+  cooldownView = view;
+  const until = Date.now() + ms;
+  refreshBtn.disabled = true;
+  const tick = () => {
+    const left = Math.ceil((until - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(cooldownTimer);
+      refreshBtn.disabled = false;
+      delete refreshBtn.dataset.done;
+      refreshLabel.textContent = IDLE_LABEL;
+      return;
+    }
+    refreshLabel.textContent = `${prefix} · wieder in ${left} s`;
+  };
+  tick();
+  cooldownTimer = setInterval(tick, 1000);
+}
+
+refreshBtn.addEventListener('click', async () => {
+  if (refreshBtn.disabled) return;
+  clearInterval(cooldownTimer);
+  delete refreshBtn.dataset.done;
+  refreshBtn.disabled = true;
+  refreshBtn.setAttribute('aria-busy', 'true');
+  refreshLabel.textContent = 'Prüfe …'; // Text zusätzlich zur Drehung (reduzierte Bewegung)
+  try {
+    const scope = view === 'all' ? '' : `?env=${encodeURIComponent(view)}`;
+    const r = await fetch(`/api/refresh${scope}`, { method: 'POST', headers: { 'X-Requested-With': 'dashboard' } });
+    const body = await r.json().catch(() => ({}));
+    refreshBtn.removeAttribute('aria-busy');
+    if (r.ok) {
+      refreshBtn.dataset.done = 'true';
+      startCooldown(body.nextInMs ?? 15_000, `✓ Fertig ${new Date().toLocaleTimeString('de-DE')}`);
+    } else if (r.status === 429) {
+      startCooldown(body.nextInMs ?? 15_000, 'Gerade erst geprüft');
+    } else {
+      throw new Error(String(r.status));
+    }
+  } catch (e) {
+    refreshBtn.removeAttribute('aria-busy');
+    refreshBtn.disabled = false;
+    refreshLabel.textContent = IDLE_LABEL;
+    alert(`Aktualisieren fehlgeschlagen: ${e.message}`);
+  }
+});
 
 // --- Beenden: Dienst stoppt und gibt den Port frei ---
 document.getElementById('power').addEventListener('click', async () => {

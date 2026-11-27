@@ -26,7 +26,7 @@ gehört ein Reverse Proxy mit Anmeldung davor.
 
 | Takt | Kriterium | Anzeige |
 |---|---|---|
-| 30 s | Author erreichbar, Anmeldung, Publish erreichbar (inkl. Fraunhofer-Header) | Lampe |
+| 30 s | VPN / Netzwerk (TCP-Verbindung zum Author-Host, ohne HTTP), Author erreichbar, Anmeldung, Publish erreichbar (inkl. Fraunhofer-Header) | Lampe |
 | 30 s | Publish-Agent aktiv und nicht blockiert/pausiert | Lampe |
 | 30 s | Blockierte Agents, Einträge in der Warteschlange | Zählwerk |
 | 30 s | Alter des ältesten Queue-Eintrags | Zeigerinstrument |
@@ -35,7 +35,7 @@ gehört ein Reverse Proxy mit Anmeldung davor.
 | 5 min | Versionen der Author-Instanz: AEM, Java, Oak (nur Anzeige, kein Kriterium; Publish ist anonym nicht lesbar) | Text neben dem Umgebungsnamen |
 | 5 min | Heap-Auslastung | Schauglas |
 | 5 min | Disk-Belegung | Schauglas |
-| 5 min | Fehlerseite 404, Samples vorhanden | Lampe |
+| 5 min | Fehlerseite 404, Samples Author, Samples Publish | Lampe |
 
 Oben in jeder Umgebung steht das Hauptinstrument (Score 0–100). Ein rotes **kritisches** Kriterium setzt die
 Gesamtbewertung auf Rot (Score höchstens 30). Nicht messbare Werte gelten als „unbekannt“, nie als grün.

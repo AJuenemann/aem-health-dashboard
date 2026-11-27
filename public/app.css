@@ -17,6 +17,13 @@ h1, h2, h3, h4, p { margin: 0; }
 .view { display: flex; gap: var(--space-1); }
 .view .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 .btn-icon { display: inline-flex; padding: var(--space-1); }
+.btn-refresh { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); }
+.btn-refresh[aria-busy="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); cursor: progress; }
+.btn-refresh[aria-busy="true"] svg { animation: spin 1s linear infinite; }
+.btn-refresh[data-done="true"] { border-color: var(--pass); color: var(--pass); }
+.btn-refresh:disabled { cursor: not-allowed; opacity: 0.85; }
+.btn-refresh[aria-busy="true"]:disabled { cursor: progress; opacity: 1; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .btn-power { display: inline-flex; padding: var(--space-1); color: var(--fail); }
 
 .conn::before { content: "● "; }
@@ -49,6 +56,7 @@ main { padding: var(--space-5); }
 .banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3); margin-bottom: var(--space-3); border-radius: var(--radius-sm); }
 .banner[data-kind="stale"] { background: var(--flaky-bg); color: var(--flaky); }
 .banner[data-kind="maintenance"] { background: var(--skip-bg); color: var(--text); font-weight: 600; }
+.banner[data-kind="net"] { background: var(--fail-bg); color: var(--fail); font-weight: 700; font-size: var(--fs-lg); border: 2px solid var(--fail); }
 .banner[data-kind="locked"] { background: var(--fail-bg); color: var(--fail); font-weight: 600; }
 .banner[hidden], .btn[hidden] { display: none; }
 
@@ -71,6 +79,8 @@ main { padding: var(--space-5); }
 .tile[data-status="crit"] .tile-title, .tile[data-status="crit"] .tile-detail { color: var(--text); }
 .tile-detail { font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
 .tile-instrument { display: grid; place-items: center; min-height: 150px; padding-bottom: var(--space-4); }
+/* Verbindung getrennt: Messgeräte grau und blass (nur die Grafik, der Text bleibt voll lesbar). Die VPN-Kachel bleibt farbig. */
+.env[data-net="down"] .tile:not([data-check="vpn"]) .tile-instrument { filter: grayscale(1); opacity: 0.35; }
 .tile-note { font-size: var(--fs-sm); color: var(--text-muted); }
 .tile-note:not(:empty) { margin-top: var(--space-1); }
 .tile-note[data-alert="true"] { color: var(--flaky); font-weight: 600; }

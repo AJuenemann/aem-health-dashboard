@@ -1,4 +1,4 @@
-import { STATUS_ICON, groupChecks, overallText, overallWord, relTime, scoreText, staleness, unknownHint, warnHint } from './logic.js';
+import { NET_CHECK, STATUS_ICON, groupChecks, overallText, overallWord, relTime, scoreText, staleness, unknownHint, warnHint } from './logic.js';
 import { createTile } from './tile.js';
 import { createGauge } from './instruments.js';
 import { SCORE_ZONES } from './geometry.js';
@@ -88,7 +88,9 @@ export function createDashboard(root, { onUnlock, onOpen, onMaintenance }) {
         view.main.update(env.overall.score, env.overall.status);
         const st = staleness(env, state.intervals, now);
         view.meta.textContent = maint ? 'Keine Prüfungen, solange die Umgebung in Wartung ist.' : `Schnell ${relTime(env.updatedAt.fast, now)} · Langsam ${relTime(env.updatedAt.slow, now)} · Anfragen/min: Author ${env.requestsPerMinute.author}, Publish ${env.requestsPerMinute.publish}`;
-        for (const c of env.checks) view.tiles.get(c.def.id)?.update(c);
+        const netDown = !maint && env.checks.some((c) => c.def.id === NET_CHECK && c.value === 0);
+        view.section.dataset.net = netDown ? 'down' : 'ok';
+        for (const c of env.checks) view.tiles.get(c.def.id)?.update(c, netDown && c.def.id !== NET_CHECK);
 
         // Sperre hat Vorrang vor "veraltet": ohne Zugang gibt es keine frischen Daten, aber aus gutem Grund.
         view.banner.hidden = !maint && !env.locked && !st.any;

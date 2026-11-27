@@ -35,6 +35,20 @@ export function groupChecks(checks, groups) {
     .filter((g) => g.checks.length > 0);
 }
 
+/** Check "VPN / Netzwerk": Wert 0 = Author-Host nicht erreichbar. Dann sind alle anderen Werte unbekannt. */
+export const NET_CHECK = 'vpn';
+
+/** Umgebungen (nicht in Wartung), deren Author-Host nicht erreichbar ist. */
+export function netDownEnvs(envs) {
+  return envs.filter((e) => e.maintenance == null && e.checks.some((c) => c.def.id === NET_CHECK && c.value === 0));
+}
+
+/** Text des allgemeinen Hinweises bei getrennter Verbindung; leer, wenn alles erreichbar ist. */
+export function netBannerText(down) {
+  if (!down.length) return '';
+  return `Keine Verbindung zum Netzwerk, vermutlich ist das VPN getrennt. Das Dashboard sendet keine Anfragen an AEM, alle anderen Werte sind unbekannt. Betroffen: ${down.map((e) => e.label).join(', ')}.`;
+}
+
 /** Ältester Stand aller Takte, null wenn einer fehlt. Für das Banner "Daten veraltet". */
 export function staleness(env, intervals, now) {
   const fast = isStale(env.updatedAt.fast, now, intervals.fastSeconds);

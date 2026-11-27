@@ -1,4 +1,5 @@
 import { LockedError, retryScope, type AemClient, type AemResponse } from './aem-client.ts';
+import { tcpReach, type Reach } from './reach.ts';
 import { aemVersion, diskPercentUsed, enabledAgents, heapPercent, htmlToCells, inactiveBundles, javaVersion, jmxValue, numberAfter, oakVersion, parseQueue } from './parsers.ts';
 import type { CheckResult, Versions } from './types.ts';
 
@@ -12,6 +13,10 @@ export interface Ctx {
   author: AemClient;
   publish: AemClient;
   now?: () => number;
+  /** Verbindungsprobe zum Author-Host (Standard: TCP). Test-Hook. */
+  reach?: (baseUrl: string) => Promise<Reach>;
+  /** Vom letzten schnellen Lauf gesetzt: Author-Host nicht erreichbar. Dann entfallen alle Anfragen (siehe `NET_DOWN`). */
+  netDown?: boolean;
   /** Meldet Versionen, die ein Check nebenbei findet (Oak steckt in bundles.json). */
   onInfo?: (patch: Partial<Versions>) => void;
 }
@@ -43,11 +48,23 @@ async function guard(ids: string[], at: number, fn: () => Promise<CheckResult[]>
 
 const unknown = (ids: string[], at: number, detail: string): CheckResult[] => ids.map((id) => ({ id, value: null, detail, at }));
 
+const FAST_IDS = ['author_up', 'login', 'resp_author', 'publish_agent', 'repl_blocked', 'repl_queue', 'repl_oldest', 'publish_up', 'resp_publish'];
+const SLOW_IDS = ['error_page', 'samples_author', 'samples_publish', 'bundles_inactive', 'heap', 'disk', 'jobs_queued'];
+const NET_DOWN = 'Netzwerk/VPN getrennt, nicht geprüft.';
+
 /** Schnelle Checks: Erreichbarkeit, Anmeldung, Replication, Antwortzeiten. */
 export async function runFast(ctx: Ctx): Promise<CheckResult[]> {
   const now = ctx.now ?? Date.now;
   const at = now();
+  // Nur DNS + TCP zum Author-Host, keine HTTP-Anfrage und keine Anmeldung.
+  const net = await guard(['vpn'], at, async () => {
+    const r = await (ctx.reach ?? tcpReach)(ctx.author.baseUrl);
+    return [{ id: 'vpn', value: r.ok ? 1 : 0, detail: r.ok ? undefined : `Author-Host nicht erreichbar: ${r.error}`, at }];
+  });
+  ctx.netDown = net[0]?.value === 0;
+  if (ctx.netDown) return [...net, ...unknown(FAST_IDS, at, NET_DOWN)];
   const parts = await Promise.all([
+    Promise.resolve(net),
     guard(['author_up'], at, async () => {
       const r = await ctx.author.getAnonymous('/libs/granite/core/content/login.html');
       return [{ id: 'author_up', value: ok(r) ? 1 : 0, detail: ok(r) ? undefined : describe(r), at }];
@@ -116,23 +133,26 @@ export async function runFast(ctx: Ctx): Promise<CheckResult[]> {
 /** Langsame Checks: Bundles, Heap, Disk, Jobs, Fehlerseite, Samples. */
 export async function runSlow(ctx: Ctx): Promise<CheckResult[]> {
   const at = (ctx.now ?? Date.now)();
+  if (ctx.netDown) return unknown(SLOW_IDS, at, NET_DOWN);
   const parts = await Promise.all([
     guard(['error_page'], at, async () => {
       const r = await ctx.publish.getAnonymous(MISSING_PAGE);
       const good = r.status === 404 && r.body.includes('Fehlerseite 404');
       return [{ id: 'error_page', value: r.status === 0 ? null : good ? 1 : 0, detail: good ? undefined : r.error ?? `HTTP ${r.status}, keine Fraunhofer-Fehlerseite`, at }];
     }),
-    guard(['samples'], at, async () => {
+    guard(['samples_author'], at, async () => {
       const missing: string[] = [];
       for (const p of ['/content/samples/de.json', '/content/dam/samples.json']) {
         const a = await authorGet(ctx, p);
-        if (!a.res) return unknown(['samples'], at, a.why);
-        if (!ok(a.res)) missing.push(`Author ${p}: ${a.why}`);
+        if (!a.res) return unknown(['samples_author'], at, a.why);
+        if (!ok(a.res)) missing.push(`${p}: ${a.why}`);
       }
+      return [{ id: 'samples_author', value: missing.length ? 0 : 1, detail: missing.join('; ') || undefined, at }];
+    }),
+    guard(['samples_publish'], at, async () => {
       const pub = await ctx.publish.getAnonymous('/content/samples/de.html');
-      if (pub.status === 0) return unknown(['samples'], at, describe(pub));
-      if (!ok(pub)) missing.push(`Publish /content/samples/de.html: ${describe(pub)}`);
-      return [{ id: 'samples', value: missing.length ? 0 : 1, detail: missing.join('; ') || undefined, at }];
+      if (pub.status === 0) return unknown(['samples_publish'], at, describe(pub));
+      return [{ id: 'samples_publish', value: ok(pub) ? 1 : 0, detail: ok(pub) ? undefined : `/content/samples/de.html: ${describe(pub)}`, at }];
     }),
     guard(['bundles_inactive'], at, async () => {
       const b = await authorGet(ctx, '/system/console/bundles.json');
@@ -162,6 +182,7 @@ export async function runSlow(ctx: Ctx): Promise<CheckResult[]> {
 
 /** AEM- und Java-Version der Author-Instanz (Anzeige, kein Kriterium). Nicht lesbar = null. Zwei Anfragen, nacheinander. */
 export async function fetchVersions(ctx: Ctx): Promise<Pick<Versions, 'aem' | 'java'>> {
+  if (ctx.netDown) return { aem: null, java: null };
   const p = await authorGet(ctx, '/system/console/status-productinfo.json');
   const r = await authorGet(ctx, '/system/console/jmx/java.lang%3Atype%3DRuntime');
   return { aem: p.res && ok(p.res) ? aemVersion(p.res.body) : null, java: r.res && ok(r.res) ? javaVersion(r.res.body) : null };
